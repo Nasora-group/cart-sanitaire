@@ -275,8 +275,9 @@ def import_csv():
                         value(row, "verification_status", "statut_verification") or "À vérifier"))
                     count += 1
             flash(f"Import terminé : {count} ligne(s) ajoutée(s).", "success")
-        except (UnicodeDecodeError, csv.Error, sqlite3.Error, Exception) as exc:
-            flash(f"Import impossible : {exc}", "error")
+        except Exception:
+            app.logger.exception("Échec de l’import CSV")
+            flash("Import impossible. Vérifiez le fichier CSV et réessayez.", "error")
         return redirect(url_for("admin"))
     return render_template("import.html")
 

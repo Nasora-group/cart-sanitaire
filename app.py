@@ -135,6 +135,10 @@ def init_db():
 
 def seed_source_dataset():
     """Initialise le répertoire depuis les points intégrés à la carte originale."""
+    # En mode PostgreSQL, ne jamais semer les données d'origine au démarrage :
+    # la restauration contrôlée doit importer l'export complet avec ses IDs.
+    if DB_URL:
+        return
     map_path = os.path.join(ROOT, "static", "carte-sanitaire-originale.html")
     if not os.path.exists(map_path):
         return
@@ -279,6 +283,87 @@ def import_csv():
             flash("Import impossible. Vérifiez le fichier CSV et réessayez.", "error")
         return redirect(url_for("admin"))
     return render_template("import.html")
+
+RESTORE_COLUMNS = (
+    "id", "name", "facility_type", "region", "department", "commune",
+    "source", "svg_x", "svg_y", "latitude", "longitude",
+    "verification_status", "notes", "updated_at",
+)
+RESTORE_NUMERIC_COLUMNS = {"svg_x", "svg_y", "latitude", "longitude"}
+
+
+def parse_full_export(text):
+    """Valide un export complet sans modifier la base."""
+    reader = csv.DictReader(io.StringIO(text))
+    headers = set(reader.fieldnames or [])
+    missing = set(RESTORE_COLUMNS) - headers
+    if missing:
+        raise ValueError("Colonnes manquantes : " + ", ".join(sorted(missing)))
+    rows, seen_ids = [], set()
+    for line_number, raw in enumerate(reader, start=2):
+        row = {column: (raw.get(column) or "").strip() for column in RESTORE_COLUMNS}
+        try:
+            row["id"] = int(row["id"])
+        except (TypeError, ValueError):
+            raise ValueError(f"Identifiant invalide à la ligne {line_number}.") from None
+        if row["id"] <= 0:
+            raise ValueError(f"Identifiant non positif à la ligne {line_number}.")
+        if row["id"] in seen_ids:
+            raise ValueError(f"Identifiant dupliqué ({row['id']}) à la ligne {line_number}.")
+        seen_ids.add(row["id"])
+        if not row["updated_at"]:
+            raise ValueError(f"Date de mise à jour manquante à la ligne {line_number}.")
+        for column in RESTORE_NUMERIC_COLUMNS:
+            if row[column] == "":
+                row[column] = None
+            else:
+                try:
+                    row[column] = float(row[column])
+                except ValueError:
+                    raise ValueError(f"Valeur numérique invalide ({column}) à la ligne {line_number}.") from None
+        rows.append(row)
+    if not rows:
+        raise ValueError("Le CSV ne contient aucune fiche à restaurer.")
+    return rows
+
+
+@app.route("/admin/restore-export", methods=["GET", "POST"])
+def restore_export():
+    if not DB_URL:
+        flash("Restauration désactivée : configurez DATABASE_URL vers la base PostgreSQL cible dans Render.", "error")
+        return render_template("restore_export.html", postgres_ready=False)
+    if request.method == "POST":
+        upload = request.files.get("file")
+        if not upload or not upload.filename.lower().endswith(".csv"):
+            flash("Choisissez le fichier CSV complet exporté depuis HealthMap.", "error")
+            return redirect(url_for("restore_export"))
+        try:
+            content = upload.stream.read().decode("utf-8-sig")
+            rows = parse_full_export(content)
+            with connect() as con:
+                existing = con.execute("SELECT COUNT(*) FROM facilities").fetchone()[0]
+                if existing:
+                    raise ValueError(
+                        f"La base cible contient déjà {existing} fiche(s). Aucun changement effectué."
+                    )
+                placeholders = ", ".join(["?"] * len(RESTORE_COLUMNS))
+                columns_sql = ", ".join(RESTORE_COLUMNS)
+                sql = f"INSERT INTO facilities ({columns_sql}) VALUES ({placeholders})"
+                for row in rows:
+                    con.execute(sql, [row[column] for column in RESTORE_COLUMNS])
+                con.execute(
+                    "SELECT setval(pg_get_serial_sequence('facilities', 'id'), "
+                    "COALESCE((SELECT MAX(id) FROM facilities), 1), true)"
+                )
+            flash(f"Restauration terminée : {len(rows)} fiches importées avec leurs identifiants et dates.", "success")
+            return redirect(url_for("admin"))
+        except ValueError as error:
+            flash(str(error), "error")
+        except Exception:
+            app.logger.exception("Échec de la restauration complète PostgreSQL")
+            flash("Restauration annulée. Vérifiez la connexion PostgreSQL et les données ; aucune validation partielle n'est annoncée.", "error")
+    return render_template("restore_export.html", postgres_ready=True)
+
 
 @app.route("/export.csv")
 def export_csv():

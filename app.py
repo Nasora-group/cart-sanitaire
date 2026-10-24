@@ -7,10 +7,12 @@ import hmac
 import sqlite3
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session
+from flask_wtf.csrf import CSRFProtect
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
+DB_URL = os.environ.get("DATABASE_URL", "").strip()
 DB_PATH = os.environ.get("DATABASE_PATH", os.path.join(DATA_DIR, "healthmap.db"))
 
 app = Flask(__name__)
@@ -18,9 +20,48 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-only-change-before-production
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=os.environ.get("RENDER", "") == "true",
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER")),
     MAX_CONTENT_LENGTH=5 * 1024 * 1024,
+    WTF_CSRF_TIME_LIMIT=3600,
 )
+csrf = CSRFProtect(app)
+
+class HybridRow:
+    """Row compatible with sqlite3.Row: access by column name or index."""
+    def __init__(self, columns, values):
+        self._columns = columns
+        self._values = values
+        self._data = dict(zip(columns, values))
+    def __getitem__(self, key):
+        return self._values[key] if isinstance(key, int) else self._data[key]
+    def __iter__(self):
+        return iter(self._values)
+    def keys(self):
+        return self._columns
+    def __len__(self):
+        return len(self._values)
+
+def pg_row_factory(cursor):
+    columns = [col.name for col in cursor.description]
+    return lambda values: HybridRow(columns, values)
+
+class PostgresConnection:
+    def __init__(self, raw):
+        self.raw = raw
+    def execute(self, sql, params=()):
+        # The app uses SQLite-style positional placeholders; translate for psycopg.
+        return self.raw.execute(sql.replace("?", "%s"), params)
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            if exc_type:
+                self.raw.rollback()
+            else:
+                self.raw.commit()
+        finally:
+            self.raw.close()
+        return False
 
 @app.before_request
 def protect_admin_routes():
@@ -47,25 +88,47 @@ def logout():
     return redirect(url_for("index"))
 
 def connect():
+    if DB_URL:
+        import psycopg
+        from psycopg.rows import tuple_row
+        url = DB_URL.replace("postgres://", "postgresql://", 1)
+        raw = psycopg.connect(url, row_factory=pg_row_factory)
+        return PostgresConnection(raw)
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     return con
 
 def init_db():
     with connect() as con:
-        con.execute("""CREATE TABLE IF NOT EXISTS facilities (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL DEFAULT '',
-            facility_type TEXT NOT NULL DEFAULT '',
-            region TEXT NOT NULL DEFAULT '',
-            department TEXT NOT NULL DEFAULT '',
-            commune TEXT NOT NULL DEFAULT '',
-            source TEXT NOT NULL DEFAULT '',
-            svg_x REAL, svg_y REAL, latitude REAL, longitude REAL,
-            verification_status TEXT NOT NULL DEFAULT 'À vérifier',
-            notes TEXT NOT NULL DEFAULT '',
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )""")
+        if DB_URL:
+            con.execute("""CREATE TABLE IF NOT EXISTS facilities (
+                id BIGSERIAL PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
+                facility_type TEXT NOT NULL DEFAULT '',
+                region TEXT NOT NULL DEFAULT '',
+                department TEXT NOT NULL DEFAULT '',
+                commune TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT '',
+                svg_x DOUBLE PRECISION, svg_y DOUBLE PRECISION,
+                latitude DOUBLE PRECISION, longitude DOUBLE PRECISION,
+                verification_status TEXT NOT NULL DEFAULT 'À vérifier',
+                notes TEXT NOT NULL DEFAULT '',
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""")
+        else:
+            con.execute("""CREATE TABLE IF NOT EXISTS facilities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL DEFAULT '',
+                facility_type TEXT NOT NULL DEFAULT '',
+                region TEXT NOT NULL DEFAULT '',
+                department TEXT NOT NULL DEFAULT '',
+                commune TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT '',
+                svg_x REAL, svg_y REAL, latitude REAL, longitude REAL,
+                verification_status TEXT NOT NULL DEFAULT 'À vérifier',
+                notes TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""")
         con.execute("CREATE INDEX IF NOT EXISTS idx_facilities_region ON facilities(region)")
         con.execute("CREATE INDEX IF NOT EXISTS idx_facilities_commune ON facilities(commune)")
         con.execute("CREATE INDEX IF NOT EXISTS idx_facilities_type ON facilities(facility_type)")
@@ -212,7 +275,7 @@ def import_csv():
                         value(row, "verification_status", "statut_verification") or "À vérifier"))
                     count += 1
             flash(f"Import terminé : {count} ligne(s) ajoutée(s).", "success")
-        except (UnicodeDecodeError, csv.Error, sqlite3.Error) as exc:
+        except (UnicodeDecodeError, csv.Error, sqlite3.Error, Exception) as exc:
             flash(f"Import impossible : {exc}", "error")
         return redirect(url_for("admin"))
     return render_template("import.html")

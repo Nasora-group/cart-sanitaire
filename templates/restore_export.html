@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Restauration PostgreSQL · HealthMap</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="logo">H+</span><span><b>HealthMap Sénégal Pro</b><small>Restauration des données</small></span></a>
+  <nav><a href="/">Répertoire</a><a href="/admin">Administration</a></nav>
+</header>
+<main class="wrap">
+  <section class="panel importpanel">
+    <h1>Restaurer l’export complet</h1>
+    <p>Cette opération conserve les identifiants, les coordonnées SVG/GPS, les notes, les statuts et les dates de modification.</p>
+    {% with messages=get_flashed_messages(with_categories=true) %}
+      {% for category,message in messages %}<p class="notice">{{ message }}</p>{% endfor %}
+    {% endwith %}
+    {% if postgres_ready %}
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>Export CSV complet<input type="file" name="file" accept=".csv,text/csv" required></label>
+        <button class="button">Valider et restaurer</button>
+      </form>
+      <p class="warningtext">Sécurité : restauration autorisée uniquement si la table cible est vide. Si elle contient déjà des fiches, l’opération est annulée. Vérifiez la sauvegarde avant de continuer.</p>
+    {% else %}
+      <p class="warningtext">La base PostgreSQL n’est pas encore configurée sur le service. Définissez DATABASE_URL dans les variables d’environnement Render, puis revenez sur cette page.</p>
+    {% endif %}
+    <p><a class="link" href="/admin">Retour à l’administration</a></p>
+  </section>
+</main>
+</body>
+</html>

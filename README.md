@@ -52,3 +52,14 @@ Le fichier `render.yaml` prépare un service web. Ajouter un disque persistant o
 - Définir des valeurs privées et longues pour `SECRET_KEY` et `ADMIN_PASSWORD` dans les variables d’environnement Render. Ne jamais les enregistrer dans Git.
 - Les formulaires POST utilisent maintenant Flask-WTF/CSRF. Garder les jetons CSRF dans chaque formulaire et conserver la protection des cookies de session.
 - L’endpoint de santé est `GET /health`.
+
+## Restaurer un export complet dans PostgreSQL sans doublons
+
+Le script `scripts/import_export_to_postgres.py` est distinct de l’import CSV de l’interface. Il conserve les identifiants, les coordonnées SVG/GPS, les notes, le statut et la date de mise à jour. Il refuse de migrer vers une table `facilities` non vide.
+
+1. Exporter toutes les fiches via `/export.csv` et conserver une copie intacte du fichier.
+2. Exécuter d’abord une simulation : `python scripts/import_export_to_postgres.py healthmap-etablissements.csv`.
+3. Vérifier que la base PostgreSQL cible est bien celle prévue, que la sauvegarde existe et que la simulation annonce le bon nombre de fiches.
+4. Définir `DATABASE_URL` dans l’environnement d’exécution, puis exécuter explicitement avec `--apply`.
+
+Le script ne configure pas lui-même Render et ne doit pas être exécuté sur une base contenant déjà des fiches. La migration ne doit commencer qu’après récupération et vérification de l’export de la base de production actuelle.

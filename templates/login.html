@@ -15,6 +15,7 @@
 <p class="flash {{ category }}">{{ message }}</p>
 {% endfor %}
 <form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label for="password">Mot de passe administrateur</label>
 <input id="password" name="password" type="password" autocomplete="current-password" required>
 <button type="submit">Se connecter</button>

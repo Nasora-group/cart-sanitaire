@@ -66,3 +66,10 @@ def test_csrf_token_is_present_on_login(tmp_path, monkeypatch):
     response = app_module.app.test_client().get('/login')
     assert response.status_code == 200
     assert b'name="csrf_token"' in response.data
+
+
+def test_csrf_rejects_post_without_token(tmp_path, monkeypatch):
+    app_module = load_app(tmp_path, monkeypatch)
+    app_module.app.config['WTF_CSRF_ENABLED'] = True
+    response = app_module.app.test_client().post('/login', data={'password': 'no-token'})
+    assert response.status_code == 400

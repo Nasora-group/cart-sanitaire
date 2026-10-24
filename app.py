@@ -293,10 +293,10 @@ def export_csv():
             params.append(filters[key])
     clause = " WHERE " + " AND ".join(where) if where else ""
     with connect() as con:
-        rows = con.execute("SELECT id,name,facility_type,region,department,commune,source,svg_x,svg_y,latitude,longitude,verification_status,notes FROM facilities" + clause + " ORDER BY region,department,commune,name", params).fetchall()
+        rows = con.execute("SELECT id,name,facility_type,region,department,commune,source,svg_x,svg_y,latitude,longitude,verification_status,notes,updated_at FROM facilities" + clause + " ORDER BY region,department,commune,name", params).fetchall()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(rows[0].keys() if rows else ["id","name","facility_type","region","department","commune","source","svg_x","svg_y","latitude","longitude","verification_status","notes"])
+    writer.writerow(rows[0].keys() if rows else ["id","name","facility_type","region","department","commune","source","svg_x","svg_y","latitude","longitude","verification_status","notes","updated_at"])
     writer.writerows([tuple(r) for r in rows])
     stream = io.BytesIO(("\ufeff" + output.getvalue()).encode("utf-8"))
     return send_file(stream, mimetype="text/csv", as_attachment=True, download_name="healthmap-etablissements.csv")

@@ -37,6 +37,43 @@ def init_db():
         con.execute("CREATE INDEX IF NOT EXISTS idx_facilities_commune ON facilities(commune)")
         con.execute("CREATE INDEX IF NOT EXISTS idx_facilities_type ON facilities(facility_type)")
 
+
+def seed_source_dataset():
+    """Charge le CSV source une seule fois, uniquement dans une base vide."""
+    source_path = os.path.join(ROOT, "data", "health_facilities_source.csv")
+    if not os.path.exists(source_path):
+        return
+    with connect() as con:
+        if con.execute("SELECT COUNT(*) FROM facilities").fetchone()[0]:
+            return
+        with open(source_path, "r", encoding="utf-8-sig", newline="") as source:
+            reader = csv.DictReader(source)
+            for row in reader:
+                raw_status = (row.get("verification_status") or "").strip().lower()
+                status = "Vérifié" if raw_status in {"verifie", "vérifié", "verified"} else "À vérifier"
+                source_row_id = (row.get("source_row_id") or "").strip()
+                audit_status = (row.get("verification_status") or "a_verifier").strip()
+                con.execute(
+                    """INSERT INTO facilities
+                    (name, facility_type, region, department, commune, source,
+                     svg_x, svg_y, latitude, longitude, verification_status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        (row.get("name_source") or "").strip(),
+                        (row.get("type_source") or "").strip(),
+                        (row.get("region_source") or "").strip(),
+                        (row.get("department_source") or "").strip(),
+                        (row.get("commune_source") or "").strip(),
+                        (row.get("source_label") or "").strip(),
+                        float(row["svg_x"]) if (row.get("svg_x") or "").strip() else None,
+                        float(row["svg_y"]) if (row.get("svg_y") or "").strip() else None,
+                        float(row["latitude"]) if (row.get("latitude") or "").strip() else None,
+                        float(row["longitude"]) if (row.get("longitude") or "").strip() else None,
+                        status,
+                        f"Identifiant source : {source_row_id}; statut d’audit initial : {audit_status}",
+                    ),
+                )
+
 def distinct_values(con, column):
     return [r[0] for r in con.execute(
         f"SELECT DISTINCT {column} FROM facilities WHERE {column} <> '' ORDER BY {column}"
@@ -167,6 +204,7 @@ def health():
     return {"status": "ok"}
 
 init_db()
+seed_source_dataset()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=False)

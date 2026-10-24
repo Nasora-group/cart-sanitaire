@@ -9,6 +9,8 @@ Prototype web de recherche et de contrôle qualité du répertoire des structure
 - Fiche de correction des données et statut de vérification.
 - Import CSV en ajout de lignes.
 - Export CSV des résultats filtrés.
+- Carte SVG interactive originale accessible depuis le menu « Carte interactive ».
+- Chargement automatique du CSV source (2 568 lignes) dans une base vide, en séparant coordonnées SVG et coordonnées GPS.
 - Endpoint de santé `/health`.
 - Configuration de déploiement Render via `render.yaml`.
 
@@ -26,15 +28,15 @@ python app.py
 Ouvrir http://127.0.0.1:5000.
 
 ## Importer les données
-Depuis l’application, ouvrir **Importer CSV** et charger le CSV nettoyé. Colonnes reconnues : `name` ou `nom`, `facility_type` ou `type`, `region`, `department` ou `departement`, `commune`, `source`.
+Le CSV source est placé dans `data/health_facilities_source.csv`. Au premier démarrage, les lignes sont chargées automatiquement si la base est vide. Pour les imports manuels, ouvrir **Importer CSV** et charger un CSV nettoyé. Colonnes reconnues : `name` ou `nom`, `facility_type` ou `type`, `region`, `department` ou `departement`, `commune`, `source`.
 
 L’import ajoute des lignes sans dédoublonnage automatique. Contrôlez le fichier avant l’import pour éviter les doublons.
 
 ## Limites à régler avant la production
 - Cette première version utilise SQLite. Pour une utilisation multi-entreprises en production, migrer vers PostgreSQL.
 - L’administration et l’import CSV ne sont pas encore protégés par authentification : ne pas exposer l’application publiquement avant sécurisation.
-- La carte SVG source et le jeu de données audité ne sont pas intégrés dans ce commit ; ils devront être ajoutés depuis le fichier original fourni par le propriétaire.
-- Les champs `svg_x/svg_y` sont distincts de `latitude/longitude`. Ne pas les utiliser comme coordonnées GPS.
+- Le jeu de données source reste à vérifier : 2 568 lignes initiales, avec champs incomplets et doublons potentiels. Il ne constitue pas un inventaire officiel exhaustif.
+- La carte HTML source est intégrée dans `static/carte-sanitaire-originale.html`. Les champs `svg_x/svg_y` sont distincts de `latitude/longitude` : ne pas les utiliser comme coordonnées GPS.
 - Vérifier les droits de réutilisation commerciale des sources DTGC/OpenStreetMap avant commercialisation.
 - Les données ne doivent pas être présentées comme exhaustives ou certifiées avant validation.
 

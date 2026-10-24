@@ -7,9 +7,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 def load_app(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "healthmap-test.db"))
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     sys.modules.pop("app", None)
     import app
-    return importlib.reload(app)
+    app = importlib.reload(app)
+    app.app.config["WTF_CSRF_ENABLED"] = False
+    return app
 
 
 def test_health_endpoint(tmp_path, monkeypatch):
@@ -56,3 +59,10 @@ def test_login_with_admin_password(tmp_path, monkeypatch):
     response = client.post("/login", data={"password": "test-admin-password"})
     assert response.status_code == 302
     assert client.get("/admin").status_code == 200
+
+
+def test_csrf_token_is_present_on_login(tmp_path, monkeypatch):
+    app_module = load_app(tmp_path, monkeypatch)
+    response = app_module.app.test_client().get('/login')
+    assert response.status_code == 200
+    assert b'name="csrf_token"' in response.data

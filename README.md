@@ -42,3 +42,13 @@ L’import ajoute des lignes sans dédoublonnage automatique. Contrôlez le fich
 
 ## Déploiement Render
 Le fichier `render.yaml` prépare un service web. Ajouter un disque persistant ou migrer vers PostgreSQL avant de compter sur la persistance des données ; le système de fichiers d’un service web peut être éphémère.
+
+
+## Stockage de production et sécurité
+
+- La base locale SQLite reste utilisée pour les tests et le développement.
+- Pour activer PostgreSQL, définir `DATABASE_URL` avec l’URL interne de la base Render. L’application crée la table `facilities` au démarrage et importe le jeu source intégré uniquement si la table est vide.
+- Ne pas basculer la production avant d’avoir vérifié la base cible et exporté les données modifiées éventuelles depuis l’instance actuelle. Le répertoire source peut être rechargé, mais les corrections faites dans l’ancienne base ne sont pas migrées automatiquement.
+- Définir des valeurs privées et longues pour `SECRET_KEY` et `ADMIN_PASSWORD` dans les variables d’environnement Render. Ne jamais les enregistrer dans Git.
+- Les formulaires POST utilisent maintenant Flask-WTF/CSRF. Garder les jetons CSRF dans chaque formulaire et conserver la protection des cookies de session.
+- L’endpoint de santé est `GET /health`.

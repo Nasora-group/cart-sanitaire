@@ -1,5 +1,3 @@
-<PARSED TEXT FOR SHEET: 1 / 1 TABS
-TAB NAME: health_facilities_source.csv>
 index,source_row_id,name_source,type_source,commune_source_index,commune_source,department_source,region_source,svg_x,svg_y,source_code,source_label,latitude,longitude,verification_status,name_normalized,type_normalized
 0,SRC-0001,pharmacie Keneya,pharmacie,175,Bandafassi,Kédougou,Kédougou,1727.23,1358.07,0,Fichier DTGC,,,a_verifier,pharmacie keneya,pharmacie
 1,SRC-0002,Daraji,,393,Meouane,Tivaouane,Thiès,291.23,519.22,0,Fichier DTGC,,,a_verifier,daraji,

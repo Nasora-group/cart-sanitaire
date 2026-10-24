@@ -39,3 +39,20 @@ def test_homepage_and_csv_export(tmp_path, monkeypatch):
     assert b"Carte interactive" in home.data
     assert b"2 568" in home.data or b"2,568" in home.data
     assert client.get("/export.csv").status_code == 200
+
+
+def test_admin_requires_login(tmp_path, monkeypatch):
+    app_module = load_app(tmp_path, monkeypatch)
+    client = app_module.app.test_client()
+    response = client.get("/admin")
+    assert response.status_code == 302
+    assert "/login" in response.headers["Location"]
+
+
+def test_login_with_admin_password(tmp_path, monkeypatch):
+    monkeypatch.setenv("ADMIN_PASSWORD", "test-admin-password")
+    app_module = load_app(tmp_path, monkeypatch)
+    client = app_module.app.test_client()
+    response = client.post("/login", data={"password": "test-admin-password"})
+    assert response.status_code == 302
+    assert client.get("/admin").status_code == 200

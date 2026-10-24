@@ -3,9 +3,10 @@ import io
 import os
 import re
 import json
+import hmac
 import sqlite3
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, session
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
@@ -14,6 +15,36 @@ DB_PATH = os.environ.get("DATABASE_PATH", os.path.join(DATA_DIR, "healthmap.db")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-change-before-production")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("RENDER", "") == "true",
+    MAX_CONTENT_LENGTH=5 * 1024 * 1024,
+)
+
+@app.before_request
+def protect_admin_routes():
+    if request.path.startswith(("/admin", "/import")) and not session.get("healthmap_admin"):
+        return redirect(url_for("login", next=request.path))
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        expected = os.environ.get("ADMIN_PASSWORD", "")
+        supplied = request.form.get("password", "")
+        if expected and hmac.compare_digest(supplied, expected):
+            session["healthmap_admin"] = True
+            destination = request.args.get("next", "")
+            if not destination.startswith("/") or destination.startswith("//"):
+                destination = url_for("admin")
+            return redirect(destination)
+        flash("Mot de passe incorrect ou accès administrateur non configuré.", "error")
+    return render_template("login.html")
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return redirect(url_for("index"))
 
 def connect():
     con = sqlite3.connect(DB_PATH)

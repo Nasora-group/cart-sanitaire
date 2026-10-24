@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel narrow">
+  <h1>Accès administration</h1>
+  <p>Connectez-vous pour modifier le répertoire ou importer un fichier CSV.</p>
+  <form method="post">
+    <label for="password">Mot de passe administrateur</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Se connecter</button>
+  </form>
+</section>
+{% endblock %}

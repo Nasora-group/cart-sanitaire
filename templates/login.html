@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion administration · HealthMap Sénégal Pro</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main class="container">
+<header class="topbar"><a class="brand" href="/">HealthMap Sénégal Pro</a><a href="/">Retour au répertoire</a></header>
+<section class="panel" style="max-width:520px;margin:4rem auto;padding:2rem">
+<h1>Accès administration</h1>
+<p>Connectez-vous pour modifier le répertoire ou importer un fichier CSV.</p>
+{% for category, message in get_flashed_messages(with_categories=true) %}
+<p class="flash {{ category }}">{{ message }}</p>
+{% endfor %}
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label for="password">Mot de passe administrateur</label>
+<input id="password" name="password" type="password" autocomplete="current-password" required>
+<button type="submit">Se connecter</button>
+</form>
+</section></main></body></html>

@@ -41,7 +41,9 @@ def test_homepage_and_csv_export(tmp_path, monkeypatch):
     assert home.status_code == 200
     assert b"Carte interactive" in home.data
     assert b"2 568" in home.data or b"2,568" in home.data
-    assert client.get("/export.csv").status_code == 200
+    export_response = client.get("/export.csv")
+    assert export_response.status_code == 200
+    assert b"updated_at" in export_response.data
 
 
 def test_admin_requires_login(tmp_path, monkeypatch):

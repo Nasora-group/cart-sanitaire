@@ -90,7 +90,6 @@ def logout():
 def connect():
     if DB_URL:
         import psycopg
-        from psycopg.rows import tuple_row
         url = DB_URL.replace("postgres://", "postgresql://", 1)
         raw = psycopg.connect(url, row_factory=pg_row_factory)
         return PostgresConnection(raw)

@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -92,8 +93,8 @@ def test_full_export_parser_preserves_ids_and_nullable_coordinates(tmp_path, mon
     app_module = load_app(tmp_path, monkeypatch)
     headers = ",".join(app_module.RESTORE_COLUMNS)
     content = (
-        headers + "\\n"
-        + '7,Hopital A,Hôpital,Dakar,Dakar,Dakar,source,12.5,18.5,,,À vérifier,note,2026-10-24T10:00:00\\n'
+        headers + "\n"
+        + '7,Hopital A,Hôpital,Dakar,Dakar,Dakar,source,12.5,18.5,,,À vérifier,note,2026-10-24T10:00:00\n'
     )
     rows = app_module.parse_full_export(content)
     assert len(rows) == 1
@@ -106,9 +107,9 @@ def test_full_export_parser_preserves_ids_and_nullable_coordinates(tmp_path, mon
 def test_full_export_parser_rejects_duplicate_ids(tmp_path, monkeypatch):
     app_module = load_app(tmp_path, monkeypatch)
     headers = ",".join(app_module.RESTORE_COLUMNS)
-    line = '7,Hopital A,Hôpital,Dakar,Dakar,Dakar,source,,,,,À vérifier,note,2026-10-24T10:00:00\\n'
+    line = '7,Hopital A,Hôpital,Dakar,Dakar,Dakar,source,,,,,À vérifier,note,2026-10-24T10:00:00\n'
     with pytest.raises(ValueError, match="dupliqué"):
-        app_module.parse_full_export(headers + "\\n" + line + line)
+        app_module.parse_full_export(headers + "\n" + line + line)
 
 
 def test_restore_export_route_requires_admin(tmp_path, monkeypatch):

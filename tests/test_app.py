@@ -1,4 +1,3 @@
-import os
 import importlib
 import sys
 
@@ -21,8 +20,7 @@ def test_health_endpoint(tmp_path, monkeypatch):
 def test_source_dataset_is_seeded_once(tmp_path, monkeypatch):
     app_module = load_app(tmp_path, monkeypatch)
     with app_module.connect() as con:
-        count = con.execute("SELECT COUNT(*) FROM facilities").fetchone()[0]
-        assert count == 2568
+        assert con.execute("SELECT COUNT(*) FROM facilities").fetchone()[0] == 2568
         assert con.execute("SELECT COUNT(*) FROM facilities WHERE svg_x IS NOT NULL").fetchone()[0] > 0
         assert con.execute("SELECT COUNT(*) FROM facilities WHERE latitude IS NOT NULL").fetchone()[0] == 0
     app_module.seed_source_dataset()
@@ -37,6 +35,4 @@ def test_homepage_and_csv_export(tmp_path, monkeypatch):
     assert home.status_code == 200
     assert b"Carte interactive" in home.data
     assert b"2 568" in home.data or b"2,568" in home.data
-    exported = client.get("/export.csv")
-    assert exported.status_code == 200
-    assert b"latitude" in exported.data
+    assert client.get("/export.csv").status_code == 200

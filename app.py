@@ -39,40 +39,46 @@ def init_db():
 
 
 def seed_source_dataset():
-    """Charge le CSV source une seule fois, uniquement dans une base vide."""
-    source_path = os.path.join(ROOT, "data", "health_facilities_source.csv")
-    if not os.path.exists(source_path):
+    """Initialise le répertoire depuis les points intégrés à la carte originale."""
+    map_path = os.path.join(ROOT, "static", "carte-sanitaire-originale.html")
+    if not os.path.exists(map_path):
         return
     with connect() as con:
         if con.execute("SELECT COUNT(*) FROM facilities").fetchone()[0]:
             return
-        with open(source_path, "r", encoding="utf-8-sig", newline="") as source:
-            reader = csv.DictReader(source)
-            for row in reader:
-                raw_status = (row.get("verification_status") or "").strip().lower()
-                status = "Vérifié" if raw_status in {"verifie", "vérifié", "verified"} else "À vérifier"
-                source_row_id = (row.get("source_row_id") or "").strip()
-                audit_status = (row.get("verification_status") or "a_verifier").strip()
-                con.execute(
-                    """INSERT INTO facilities
-                    (name, facility_type, region, department, commune, source,
-                     svg_x, svg_y, latitude, longitude, verification_status, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        (row.get("name_source") or "").strip(),
-                        (row.get("type_source") or "").strip(),
-                        (row.get("region_source") or "").strip(),
-                        (row.get("department_source") or "").strip(),
-                        (row.get("commune_source") or "").strip(),
-                        (row.get("source_label") or "").strip(),
-                        float(row["svg_x"]) if (row.get("svg_x") or "").strip() else None,
-                        float(row["svg_y"]) if (row.get("svg_y") or "").strip() else None,
-                        float(row["latitude"]) if (row.get("latitude") or "").strip() else None,
-                        float(row["longitude"]) if (row.get("longitude") or "").strip() else None,
-                        status,
-                        f"Identifiant source : {source_row_id}; statut d’audit initial : {audit_status}",
-                    ),
-                )
+        with open(map_path, "r", encoding="utf-8") as source:
+            html = source.read()
+        match = re.search(r"const D=(\{.*?\});", html, re.S)
+        if not match:
+            app.logger.error("Données cartographiques introuvables dans la carte source.")
+            return
+        dataset = json.loads(match.group(1))
+        communes = dataset.get("communes", [])
+        regions = dataset.get("regions", {})
+        departments = dict(dataset.get("deps", []))
+        source_labels = {0: "Fichier DTGC", 1: "OpenStreetMap (octobre 2026)"}
+        for index, point in enumerate(dataset.get("pts", []), start=1):
+            name, facility_type, svg_x, svg_y, commune_index, source_code = (point + [None] * 6)[:6]
+            commune = communes[commune_index] if isinstance(commune_index, int) and 0 <= commune_index < len(communes) else {}
+            region_code = commune.get("reg", "")
+            department_code = commune.get("dep", "")
+            con.execute(
+                """INSERT INTO facilities
+                (name, facility_type, region, department, commune, source,
+                 svg_x, svg_y, verification_status, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    name or "", facility_type or "",
+                    regions.get(region_code, {}).get("name", ""),
+                    departments.get(department_code, ""),
+                    commune.get("n", ""),
+                    source_labels.get(source_code, "Source non précisée"),
+                    float(svg_x) if svg_x is not None else None,
+                    float(svg_y) if svg_y is not None else None,
+                    "À vérifier",
+                    f"Point source #{index}; coordonnées SVG uniquement; localisation GPS non validée",
+                ),
+            )
 
 def distinct_values(con, column):
     return [r[0] for r in con.execute(
